@@ -18,8 +18,8 @@ function scoreColor(score: number): string {
 }
 
 function scoreGlow(score: number): string {
-  if (score >= 80) return "shadow-[0_0_20px_rgba(220,38,38,0.25)]";
-  if (score >= 60) return "shadow-[0_0_15px_rgba(234,88,12,0.15)]";
+  if (score >= 80) return "shadow-[0_0_24px_rgba(220,38,38,0.3)]";
+  if (score >= 60) return "shadow-[0_0_18px_rgba(234,88,12,0.2)]";
   return "";
 }
 
@@ -40,7 +40,7 @@ export function AIScoreCard({ property }: { property: ScoredProperty }) {
       <div className="flex items-center gap-3">
         {/* Score badge */}
         <div
-          className={`w-16 h-16 rounded-xl flex flex-col items-center justify-center font-mono ${scoreColor(property.distressScore)} ${scoreGlow(property.distressScore)} ${property.distressScore >= 80 ? "animate-pulse-glow" : ""}`}
+          className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center font-mono backdrop-blur-sm ${scoreColor(property.distressScore)} ${scoreGlow(property.distressScore)} ${property.distressScore >= 80 ? "animate-pulse-glow" : ""}`}
           style={
             property.distressScore >= 80
               ? ({ "--glow-color": "rgba(220,38,38,0.25)" } as React.CSSProperties)

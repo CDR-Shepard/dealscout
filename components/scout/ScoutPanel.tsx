@@ -90,9 +90,9 @@ export function ScoutPanel() {
   }, [searchInput, drawnPolygon, homeLimit, reset]);
 
   return (
-    <div className="w-[360px] flex flex-col bg-ds-surface border-l border-ds-border overflow-hidden shadow-sm">
+    <div className="w-[360px] flex flex-col glass-elevated border-l border-white/20 overflow-hidden">
       {/* Search / Controls */}
-      <div className="p-3 space-y-3 border-b border-ds-border">
+      <div className="p-3 space-y-3 border-b border-white/15">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ds-text-muted" />
           <Input
@@ -100,7 +100,7 @@ export function ScoutPanel() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && startScout()}
-            className="pl-8 h-9 text-xs bg-ds-bg border-ds-border text-ds-text placeholder:text-ds-text-muted"
+            className="pl-8 h-9 text-xs glass-input text-ds-text placeholder:text-ds-text-muted rounded-xl"
             disabled={isRunning}
           />
         </div>
@@ -116,7 +116,7 @@ export function ScoutPanel() {
             step={10}
             value={homeLimit}
             onChange={(e) => setHomeLimit(Math.max(0, parseInt(e.target.value) || 0))}
-            className="h-7 w-20 text-xs text-center bg-ds-bg border-ds-border text-ds-text font-mono"
+            className="h-7 w-20 text-xs text-center glass-input text-ds-text font-mono rounded-lg"
             disabled={isRunning}
           />
           <span className="text-[10px] text-ds-text-muted">
@@ -128,10 +128,10 @@ export function ScoutPanel() {
           <Button
             variant="outline"
             size="sm"
-            className={`flex-1 text-xs h-8 border-ds-border ${
+            className={`flex-1 text-xs h-8 rounded-xl border-white/25 backdrop-blur-sm ${
               isDrawing
                 ? "bg-ds-amber/10 text-ds-amber border-ds-amber/30"
-                : "text-ds-text-secondary hover:text-ds-text"
+                : "text-ds-text-secondary hover:text-ds-text hover:bg-white/20"
             }`}
             onClick={() => {
               if (isDrawing) {
@@ -158,7 +158,7 @@ export function ScoutPanel() {
         </div>
 
         <Button
-          className="w-full h-10 text-sm font-semibold bg-ds-amber hover:bg-ds-amber/90 text-white"
+          className="w-full h-10 text-sm font-semibold bg-ds-amber hover:bg-ds-amber/90 text-white rounded-xl shadow-lg shadow-ds-amber/15"
           onClick={startScout}
           disabled={isRunning || (!searchInput.trim() && !drawnPolygon)}
         >

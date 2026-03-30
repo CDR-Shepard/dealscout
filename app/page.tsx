@@ -63,7 +63,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <Link href="/map">
-          <Button className="bg-ds-amber hover:bg-ds-amber/90 text-white text-sm">
+          <Button className="bg-ds-amber hover:bg-ds-amber/90 text-white text-sm rounded-xl shadow-lg shadow-ds-amber/15">
             <Rocket className="w-4 h-4 mr-2" />
             New Scout
           </Button>
@@ -92,7 +92,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top Opportunities */}
-        <Card className="bg-ds-surface border-ds-border shadow-sm">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-ds-text flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-ds-amber" />
@@ -108,7 +108,7 @@ export default function DashboardPage() {
               data?.topProperties.map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between p-2 rounded-md bg-ds-bg border border-ds-border"
+                  className="flex items-center justify-between p-2 rounded-xl glass-subtle"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Badge
@@ -151,7 +151,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Recent Scouts */}
-        <Card className="bg-ds-surface border-ds-border shadow-sm">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-ds-text flex items-center gap-2">
               <History className="w-4 h-4 text-ds-blue" />
@@ -167,7 +167,7 @@ export default function DashboardPage() {
               data?.recentScouts.map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between p-2 rounded-md bg-ds-bg border border-ds-border"
+                  className="flex items-center justify-between p-2 rounded-xl glass-subtle"
                 >
                   <div className="flex items-center gap-2">
                     <MapPin className="w-3.5 h-3.5 text-ds-text-muted shrink-0" />
@@ -219,9 +219,9 @@ function StatCard({
   isMoney?: boolean;
 }) {
   return (
-    <Card className="bg-ds-surface border-ds-border shadow-sm">
+    <Card>
       <CardContent className="flex items-center gap-4 p-4">
-        <div className="w-10 h-10 rounded-lg bg-ds-elevated flex items-center justify-center">
+        <div className="w-10 h-10 rounded-xl glass-subtle flex items-center justify-center">
           {icon}
         </div>
         <div>

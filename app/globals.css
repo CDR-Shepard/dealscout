@@ -47,8 +47,8 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* DealScout — warm light palette */
-  --color-ds-bg: #f7f5f2;
+  /* DealScout — Liquid Glass palette */
+  --color-ds-bg: #f0eee9;
   --color-ds-surface: #ffffff;
   --color-ds-elevated: #f0ece7;
   --color-ds-border: #e0d9cf;
@@ -67,37 +67,37 @@
 }
 
 :root {
-  --background: #f7f5f2;
+  --background: #f0eee9;
   --foreground: #1c1917;
-  --card: #ffffff;
+  --card: rgba(255, 255, 255, 0.55);
   --card-foreground: #1c1917;
-  --popover: #ffffff;
+  --popover: rgba(255, 255, 255, 0.75);
   --popover-foreground: #1c1917;
   --primary: #b45309;
   --primary-foreground: #ffffff;
-  --secondary: #f0ece7;
+  --secondary: rgba(240, 236, 231, 0.6);
   --secondary-foreground: #1c1917;
-  --muted: #f0ece7;
+  --muted: rgba(240, 236, 231, 0.5);
   --muted-foreground: #78716c;
-  --accent: #f0ece7;
+  --accent: rgba(240, 236, 231, 0.5);
   --accent-foreground: #1c1917;
   --destructive: #dc2626;
-  --border: #e0d9cf;
-  --input: #e0d9cf;
+  --border: rgba(255, 255, 255, 0.35);
+  --input: rgba(255, 255, 255, 0.35);
   --ring: #b45309;
   --chart-1: #b45309;
   --chart-2: #2563eb;
   --chart-3: #ea580c;
   --chart-4: #ca8a04;
   --chart-5: #dc2626;
-  --radius: 0.5rem;
-  --sidebar: #ffffff;
+  --radius: 0.75rem;
+  --sidebar: rgba(255, 255, 255, 0.5);
   --sidebar-foreground: #1c1917;
   --sidebar-primary: #b45309;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f0ece7;
+  --sidebar-accent: rgba(240, 236, 231, 0.5);
   --sidebar-accent-foreground: #1c1917;
-  --sidebar-border: #e0d9cf;
+  --sidebar-border: rgba(255, 255, 255, 0.3);
   --sidebar-ring: #b45309;
 }
 
@@ -113,14 +113,80 @@
   }
 }
 
-/* Mapbox overrides — light mode */
+/* ─── Liquid Glass foundation ─── */
+body {
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(180, 83, 9, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 90%, rgba(37, 99, 235, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 50% 50%, rgba(234, 88, 12, 0.03) 0%, transparent 50%),
+    #f0eee9;
+}
+
+/* Glass surface utility */
+.glass {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 4px 24px rgba(0, 0, 0, 0.04);
+}
+
+/* Stronger glass for elevated panels */
+.glass-elevated {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(20px) saturate(190%);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 8px 32px rgba(0, 0, 0, 0.06);
+}
+
+/* Subtle glass for nested items */
+.glass-subtle {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(8px) saturate(160%);
+  -webkit-backdrop-filter: blur(8px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset;
+}
+
+/* Glass input fields */
+.glass-input {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) inset;
+  transition: all 0.2s ease;
+}
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(180, 83, 9, 0.3);
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.1), 0 1px 2px rgba(0, 0, 0, 0.04) inset;
+}
+
+/* Glass badge */
+.glass-badge {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Mapbox overrides — Liquid Glass */
 .mapboxgl-canvas {
   outline: none;
 }
 .mapboxgl-ctrl-group {
-  background: #ffffff !important;
-  border-color: #e0d9cf !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(12px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
+  border-radius: 12px !important;
 }
 .mapboxgl-ctrl-group button {
   filter: none;
@@ -129,7 +195,7 @@
 /* Score badge pulse animation */
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 8px var(--glow-color, #dc26261a); }
-  50% { box-shadow: 0 0 20px var(--glow-color, #dc26261a); }
+  50% { box-shadow: 0 0 24px var(--glow-color, #dc26261a); }
 }
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
@@ -153,17 +219,38 @@
   animation: blink 1s step-end infinite;
 }
 
-/* Custom scrollbar — light */
+/* Glass shimmer on hover */
+@keyframes glass-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.glass-shimmer:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: glass-shimmer 1.2s ease-in-out;
+  pointer-events: none;
+}
+
+/* Custom scrollbar — frosted */
 ::-webkit-scrollbar {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f7f5f2;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d6cfc4;
+  background: rgba(168, 162, 158, 0.3);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #c7bdb0;
+  background: rgba(168, 162, 158, 0.5);
 }

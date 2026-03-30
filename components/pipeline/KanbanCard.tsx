@@ -32,10 +32,10 @@ export function KanbanCard({ property, isDragging = false }: KanbanCardProps) {
       style={style}
       {...listeners}
       {...attributes}
-      className={`p-2.5 rounded-md border bg-ds-surface cursor-grab active:cursor-grabbing transition-shadow ${
+      className={`p-2.5 rounded-xl glass-subtle cursor-grab active:cursor-grabbing transition-all ${
         isDragging
-          ? "border-ds-amber/50 shadow-lg shadow-ds-amber/10 opacity-90"
-          : "border-ds-border hover:border-ds-border-active hover:shadow-sm"
+          ? "border-ds-amber/40 shadow-lg shadow-ds-amber/10 opacity-90 scale-[1.02]"
+          : "hover:bg-white/45 hover:shadow-sm"
       }`}
     >
       <div className="flex items-start justify-between gap-2">

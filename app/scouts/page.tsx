@@ -45,10 +45,10 @@ export default function ScoutsPage() {
         </p>
       </div>
 
-      <div className="bg-ds-surface border border-ds-border rounded-lg overflow-hidden shadow-sm">
+      <div className="glass rounded-2xl overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="border-ds-border hover:bg-transparent">
+            <TableRow className="border-white/10 hover:bg-transparent">
               <TableHead className="text-[10px] text-ds-text-muted">
                 Location
               </TableHead>
@@ -74,7 +74,7 @@ export default function ScoutsPage() {
           </TableHeader>
           <TableBody>
             {sessions.length === 0 ? (
-              <TableRow className="border-ds-border">
+              <TableRow className="border-white/10">
                 <TableCell
                   colSpan={7}
                   className="text-center text-xs text-ds-text-muted py-8"
@@ -86,7 +86,7 @@ export default function ScoutsPage() {
               sessions.map((s) => (
                 <TableRow
                   key={s.id}
-                  className="border-ds-border hover:bg-ds-elevated/30 cursor-pointer"
+                  className="border-white/10 hover:bg-white/20 cursor-pointer transition-colors"
                 >
                   <TableCell className="py-2">
                     <div className="flex items-center gap-1.5">

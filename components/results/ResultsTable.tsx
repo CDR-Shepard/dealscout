@@ -67,7 +67,7 @@ function ExpandedRow({ property }: { property: ScoredProperty }) {
           : null;
 
   return (
-    <TableRow className="border-ds-border bg-ds-bg/50 hover:bg-ds-bg/50">
+    <TableRow className="border-white/10 bg-white/10 hover:bg-white/10">
       <TableCell colSpan={8} className="p-0">
         <div className="px-6 py-4 space-y-3">
           {/* Reasoning */}
@@ -169,10 +169,10 @@ function ExpandedRow({ property }: { property: ScoredProperty }) {
                           imageView === "satellite" ? null : "satellite"
                         )
                       }
-                      className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors border ${
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] transition-all ${
                         imageView === "satellite"
-                          ? "bg-ds-amber/10 text-ds-amber border-ds-amber/30"
-                          : "text-ds-text-muted hover:text-ds-text border-ds-border"
+                          ? "glass-subtle text-ds-amber"
+                          : "text-ds-text-muted hover:text-ds-text hover:bg-white/25"
                       }`}
                     >
                       <Satellite className="w-3 h-3" /> Aerial
@@ -185,10 +185,10 @@ function ExpandedRow({ property }: { property: ScoredProperty }) {
                           imageView === "street" ? null : "street"
                         )
                       }
-                      className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors border ${
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] transition-all ${
                         imageView === "street"
-                          ? "bg-ds-amber/10 text-ds-amber border-ds-amber/30"
-                          : "text-ds-text-muted hover:text-ds-text border-ds-border"
+                          ? "glass-subtle text-ds-amber"
+                          : "text-ds-text-muted hover:text-ds-text hover:bg-white/25"
                       }`}
                     >
                       <Eye className="w-3 h-3" /> Street
@@ -201,10 +201,10 @@ function ExpandedRow({ property }: { property: ScoredProperty }) {
                           imageView === "photo" ? null : "photo"
                         )
                       }
-                      className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors border ${
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] transition-all ${
                         imageView === "photo"
-                          ? "bg-ds-amber/10 text-ds-amber border-ds-amber/30"
-                          : "text-ds-text-muted hover:text-ds-text border-ds-border"
+                          ? "glass-subtle text-ds-amber"
+                          : "text-ds-text-muted hover:text-ds-text hover:bg-white/25"
                       }`}
                     >
                       <ImageIcon className="w-3 h-3" /> Photo
@@ -213,7 +213,7 @@ function ExpandedRow({ property }: { property: ScoredProperty }) {
                 </div>
               </div>
               {imageSrc && (
-                <div className="mt-2 rounded-md overflow-hidden border border-ds-border max-w-md">
+                <div className="mt-2 rounded-xl overflow-hidden glass-subtle max-w-md">
                   <img
                     src={imageSrc}
                     alt={`${imageView} view of ${property.address}`}
@@ -320,8 +320,8 @@ export function ResultsTable() {
   if (properties.length === 0) return null;
 
   return (
-    <div className="bg-ds-surface border-t border-ds-border shadow-inner">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-ds-border/50">
+    <div className="glass-elevated border-t border-white/20">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/15">
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-ds-text">
             {sorted.length} properties
@@ -349,7 +349,7 @@ export function ResultsTable() {
       <div className="max-h-[350px] overflow-auto">
         <Table>
           <TableHeader>
-            <TableRow className="border-ds-border hover:bg-transparent">
+            <TableRow className="border-white/10 hover:bg-transparent">
               <TableHead className="w-8" />
               <TableHead
                 className="text-[10px] text-ds-text-muted cursor-pointer w-16 font-semibold uppercase tracking-wider"
@@ -401,10 +401,10 @@ export function ResultsTable() {
                 <>
                   <TableRow
                     key={rowId}
-                    className={`border-ds-border cursor-pointer transition-colors ${
+                    className={`border-white/10 cursor-pointer transition-colors ${
                       isExpanded
-                        ? "bg-ds-elevated/60"
-                        : "hover:bg-ds-elevated/30"
+                        ? "bg-white/25"
+                        : "hover:bg-white/15"
                     }`}
                     onClick={() => toggleExpand(rowId)}
                   >

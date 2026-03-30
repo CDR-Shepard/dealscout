@@ -71,10 +71,10 @@ function NumberBox({
   variant?: "neutral" | "green" | "orange" | "blue";
 }) {
   const borderColors = {
-    neutral: "border-ds-border",
-    green: "border-ds-green/20",
-    orange: "border-ds-orange/20",
-    blue: "border-ds-blue/20",
+    neutral: "",
+    green: "!border-ds-green/15",
+    orange: "!border-ds-orange/15",
+    blue: "!border-ds-blue/15",
   };
   const valueColors = {
     neutral: "text-ds-text",
@@ -85,7 +85,7 @@ function NumberBox({
 
   return (
     <div
-      className={`rounded-md border p-2 bg-ds-bg ${borderColors[variant]}`}
+      className={`rounded-xl p-2 glass-subtle ${borderColors[variant]}`}
     >
       <div className="text-[9px] text-ds-text-muted uppercase tracking-wider">
         {label}

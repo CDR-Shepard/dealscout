@@ -21,9 +21,9 @@ export function NavBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex items-center justify-between h-12 px-4 bg-ds-surface border-b border-ds-border shrink-0 shadow-sm">
+    <nav className="glass-elevated flex items-center justify-between h-12 px-4 shrink-0 z-30 border-b border-white/20">
       <Link href="/" className="flex items-center gap-2 group">
-        <div className="w-7 h-7 rounded-md bg-ds-amber/10 flex items-center justify-center">
+        <div className="w-7 h-7 rounded-lg bg-ds-amber/10 backdrop-blur-sm flex items-center justify-center">
           <Crosshair className="w-4 h-4 text-ds-amber" />
         </div>
         <span className="font-[var(--font-heading)] font-bold text-sm tracking-wide text-ds-text group-hover:text-ds-amber transition-colors">
@@ -38,10 +38,10 @@ export function NavBar() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 active
-                  ? "bg-ds-amber/10 text-ds-amber"
-                  : "text-ds-text-secondary hover:text-ds-text hover:bg-ds-elevated"
+                  ? "glass-subtle text-ds-amber"
+                  : "text-ds-text-secondary hover:text-ds-text hover:bg-white/20"
               }`}
             >
               <Icon className="w-3.5 h-3.5" />

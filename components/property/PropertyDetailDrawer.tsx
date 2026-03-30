@@ -62,7 +62,7 @@ export function PropertyDetailDrawer() {
     <Sheet open={drawerOpen} onOpenChange={(open) => !open && closeDrawer()}>
       <SheetContent
         side="right"
-        className="w-[480px] sm:max-w-[480px] bg-ds-surface border-ds-border p-0"
+        className="w-[480px] sm:max-w-[480px] p-0 glass-elevated !rounded-l-2xl border-l border-white/20"
       >
         <SheetHeader className="px-4 pt-4 pb-2">
           <div className="flex items-start justify-between">
@@ -118,7 +118,7 @@ export function PropertyDetailDrawer() {
 
             {/* Visual analysis results */}
             {property.visualAnalysis && property.visualAnalysis.score > 0 && (
-              <div className="rounded-md border border-orange-200 bg-orange-50 p-3 space-y-2">
+              <div className="rounded-xl border border-orange-200/40 bg-orange-50/50 backdrop-blur-sm p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Eye className="w-3.5 h-3.5 text-ds-orange" />
                   <span className="text-xs font-semibold text-ds-orange">
@@ -205,7 +205,7 @@ export function PropertyDetailDrawer() {
             <div className="flex gap-2 pt-2">
               <Button
                 onClick={saveToPipeline}
-                className="flex-1 bg-ds-amber hover:bg-ds-amber/90 text-white text-xs h-9"
+                className="flex-1 bg-ds-amber hover:bg-ds-amber/90 text-white text-xs h-9 rounded-xl shadow-lg shadow-ds-amber/15"
               >
                 <Save className="w-3.5 h-3.5 mr-1.5" />
                 Save to Pipeline
@@ -228,7 +228,7 @@ function QuickStat({
   value: string | number;
 }) {
   return (
-    <div className="bg-ds-bg rounded-md p-2 text-center space-y-0.5 border border-ds-border">
+    <div className="glass-subtle rounded-xl p-2 text-center space-y-0.5">
       <div className="flex justify-center text-ds-text-muted">{icon}</div>
       <div className="font-mono text-sm font-bold text-ds-text">{value}</div>
       <div className="text-[9px] text-ds-text-muted uppercase">{label}</div>
@@ -273,7 +273,7 @@ function PropertyImageViewer({ property }: { property: import("@/store/useScoutS
 
   if (!imageSrc && !property.satelliteUrl && !property.streetViewUrl && !property.primaryPhoto) {
     return (
-      <div className="rounded-lg h-48 bg-ds-bg border border-ds-border flex items-center justify-center">
+      <div className="rounded-xl h-48 glass-subtle flex items-center justify-center">
         <p className="text-xs text-ds-text-muted">No imagery available</p>
       </div>
     );
@@ -281,7 +281,7 @@ function PropertyImageViewer({ property }: { property: import("@/store/useScoutS
 
   return (
     <div className="space-y-1.5">
-      <div className="relative rounded-lg overflow-hidden h-48 bg-ds-bg border border-ds-border">
+      <div className="relative rounded-xl overflow-hidden h-48 glass-subtle">
         {imageSrc ? (
           <img
             src={imageSrc}
@@ -312,10 +312,10 @@ function PropertyImageViewer({ property }: { property: import("@/store/useScoutS
           {property.satelliteUrl && (
             <button
               onClick={() => setView("satellite")}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-all ${
                 view === "satellite"
-                  ? "bg-ds-amber/10 text-ds-amber"
-                  : "text-ds-text-muted hover:text-ds-text"
+                  ? "glass-subtle text-ds-amber"
+                  : "text-ds-text-muted hover:text-ds-text hover:bg-white/25"
               }`}
             >
               <Satellite className="w-3 h-3" /> Aerial
@@ -324,10 +324,10 @@ function PropertyImageViewer({ property }: { property: import("@/store/useScoutS
           {property.streetViewUrl && (
             <button
               onClick={() => setView("street")}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-all ${
                 view === "street"
-                  ? "bg-ds-amber/10 text-ds-amber"
-                  : "text-ds-text-muted hover:text-ds-text"
+                  ? "glass-subtle text-ds-amber"
+                  : "text-ds-text-muted hover:text-ds-text hover:bg-white/25"
               }`}
             >
               <Eye className="w-3 h-3" /> Street
@@ -336,10 +336,10 @@ function PropertyImageViewer({ property }: { property: import("@/store/useScoutS
           {property.primaryPhoto && (
             <button
               onClick={() => setView("photo")}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-all ${
                 view === "photo"
-                  ? "bg-ds-amber/10 text-ds-amber"
-                  : "text-ds-text-muted hover:text-ds-text"
+                  ? "glass-subtle text-ds-amber"
+                  : "text-ds-text-muted hover:text-ds-text hover:bg-white/25"
               }`}
             >
               Photo

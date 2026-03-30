@@ -39,7 +39,7 @@ export default function RootLayout({
       lang="en"
       className={`${outfit.variable} ${ibmPlex.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="h-full flex flex-col bg-ds-bg text-ds-text selection:bg-ds-amber/20">
+      <body className="h-full flex flex-col text-ds-text selection:bg-ds-amber/20">
         <TooltipProvider>
           <NavBar />
           <main className="flex-1 overflow-hidden">{children}</main>

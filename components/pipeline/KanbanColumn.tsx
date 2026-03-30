@@ -23,11 +23,11 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col w-[260px] min-w-[260px] rounded-lg bg-ds-surface border transition-colors ${
-        isOver ? "border-ds-amber/50 bg-ds-amber/5" : "border-ds-border"
+      className={`flex flex-col w-[260px] min-w-[260px] rounded-2xl glass transition-all ${
+        isOver ? "border-ds-amber/40 bg-ds-amber/5" : ""
       }`}
     >
-      <div className="flex items-center justify-between px-3 py-2 border-b border-ds-border">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/15">
         <span className={`text-xs font-semibold uppercase tracking-wider ${color}`}>
           {label}
         </span>
