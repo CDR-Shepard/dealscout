@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  name            String?
+  image           String?
+  scoutSessions   ScoutSession[]
+  savedProperties SavedProperty[]
+  createdAt       DateTime        @default(now())
+}
+
+model ScoutSession {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id])
+  location     String
+  bounds       String?
+  filters      String?
+  totalScanned Int               @default(0)
+  totalFlagged Int               @default(0)
+  hotDeals     Int               @default(0)
+  duration     Int?
+  status       String            @default("running")
+  properties   ScoutedProperty[]
+  createdAt    DateTime          @default(now())
+  completedAt  DateTime?
+
+  @@index([userId, createdAt])
+}
+
+model ScoutedProperty {
+  id                String       @id @default(cuid())
+  scoutSessionId    String
+  scoutSession      ScoutSession @relation(fields: [scoutSessionId], references: [id], onDelete: Cascade)
+  propertyId        String?
+  propertyUrl       String?
+  address           String
+  city              String
+  state             String
+  zipCode           String
+  latitude          Float?
+  longitude         Float?
+  listPrice         Int?
+  estimatedValue    Int?
+  soldPrice         Int?
+  sqft              Int?
+  beds              Int?
+  baths             Float?
+  yearBuilt         Int?
+  lotSqft           Int?
+  daysOnMls         Int?
+  propertyType      String?
+  listingStatus     String?
+  pricePerSqft      Float?
+  taxAssessedValue  Int?
+  hoaFee            Int?
+  description       String?
+  photos            String?
+  primaryPhoto      String?
+  rawData           String?
+  distressScore     Int?
+  distressSignals   String?
+  investmentType    String?
+  estimatedArv      Int?
+  repairLevel       String?
+  repairCostLow     Int?
+  repairCostHigh    Int?
+  maxAllowableOffer Int?
+  wholesaleFeeEst   Int?
+  flipProfitEst     Int?
+  aiReasoning       String?
+  aiConfidence      Int?
+  recommendedAction String?
+  createdAt         DateTime     @default(now())
+
+  @@unique([scoutSessionId, propertyId])
+  @@index([distressScore])
+  @@index([scoutSessionId])
+}
+
+model SavedProperty {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  scoutedPropertyId String?
+  address           String
+  city              String
+  state             String
+  zipCode           String
+  latitude          Float?
+  longitude         Float?
+  listPrice         Int?
+  estimatedArv      Int?
+  maxAllowableOffer Int?
+  distressScore     Int?
+  investmentType    String?
+  aiReasoning       String?
+  distressSignals   String?
+  photos            String?
+  primaryPhoto      String?
+  allData           String?
+  pipelineStage     String   @default("scouted")
+  tags              String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId, pipelineStage])
+  @@index([userId, distressScore])
+}

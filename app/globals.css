@@ -46,75 +46,59 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* DealScout — warm light palette */
+  --color-ds-bg: #f7f5f2;
+  --color-ds-surface: #ffffff;
+  --color-ds-elevated: #f0ece7;
+  --color-ds-border: #e0d9cf;
+  --color-ds-border-active: #c7bdb0;
+  --color-ds-text: #1c1917;
+  --color-ds-text-secondary: #57534e;
+  --color-ds-text-muted: #a8a29e;
+  --color-ds-green: #15803d;
+  --color-ds-green-glow: #15803d1a;
+  --color-ds-red: #dc2626;
+  --color-ds-red-glow: #dc26261a;
+  --color-ds-orange: #ea580c;
+  --color-ds-yellow: #ca8a04;
+  --color-ds-blue: #2563eb;
+  --color-ds-amber: #b45309;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #f7f5f2;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --popover: #ffffff;
+  --popover-foreground: #1c1917;
+  --primary: #b45309;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ece7;
+  --secondary-foreground: #1c1917;
+  --muted: #f0ece7;
+  --muted-foreground: #78716c;
+  --accent: #f0ece7;
+  --accent-foreground: #1c1917;
+  --destructive: #dc2626;
+  --border: #e0d9cf;
+  --input: #e0d9cf;
+  --ring: #b45309;
+  --chart-1: #b45309;
+  --chart-2: #2563eb;
+  --chart-3: #ea580c;
+  --chart-4: #ca8a04;
+  --chart-5: #dc2626;
+  --radius: 0.5rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1917;
+  --sidebar-primary: #b45309;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0ece7;
+  --sidebar-accent-foreground: #1c1917;
+  --sidebar-border: #e0d9cf;
+  --sidebar-ring: #b45309;
 }
 
 @layer base {
@@ -127,4 +111,59 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Mapbox overrides — light mode */
+.mapboxgl-canvas {
+  outline: none;
+}
+.mapboxgl-ctrl-group {
+  background: #ffffff !important;
+  border-color: #e0d9cf !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+}
+.mapboxgl-ctrl-group button {
+  filter: none;
+}
+
+/* Score badge pulse animation */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--glow-color, #dc26261a); }
+  50% { box-shadow: 0 0 20px var(--glow-color, #dc26261a); }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Scan sweep animation */
+@keyframes scan-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.animate-scan-sweep {
+  animation: scan-sweep 3s ease-in-out infinite;
+}
+
+/* Activity feed typing effect */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Custom scrollbar — light */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f7f5f2;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6cfc4;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c7bdb0;
 }
