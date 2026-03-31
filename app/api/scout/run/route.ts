@@ -2,13 +2,17 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { searchMulti } from "@/lib/homeharvest/client";
 import { preScore } from "@/lib/ai/pre-score";
-import { scoreBatch, chunkArray, type AIPropertyScore } from "@/lib/ai/scoring";
-import { analyzePropertiesBatch, getSatelliteImageUrl, getStreetViewUrl, type VisualDistressAnalysis } from "@/lib/ai/satellite";
+import { buildPropertyContext, extractListingPhotos } from "@/lib/ai/scoring";
+import {
+  analyzePropertyVisually,
+  getSatelliteImageUrl,
+  getStreetViewUrl,
+  type VisualDistressAnalysis,
+} from "@/lib/ai/satellite";
 import type { HomeHarvestProperty } from "@/lib/homeharvest/types";
 import { pointInPolygon } from "@/lib/geo/point-in-polygon";
 
-const BATCH_SIZE = 10;
-const PRE_SCORE_THRESHOLD = 20;
+const CONCURRENCY = 5;
 const DEFAULT_USER_ID = "demo-user";
 
 export async function POST(request: NextRequest) {
@@ -56,7 +60,7 @@ export async function POST(request: NextRequest) {
 
         send("started", { location: location || "Custom Area", sessionId: session.id });
 
-        // Step 1: Fetch properties
+        // ─── Step 1: Fetch properties ───
         send("fetching", { message: `Fetching properties in ${location || "drawn area"}...` });
 
         const searchLocation = location || `${bounds![0][1]},${bounds![0][0]}`;
@@ -104,146 +108,164 @@ export async function POST(request: NextRequest) {
           soldComps: counts.sold_comps,
         });
 
-        // Step 2: Pre-filter
-        const scored = allProperties.map((p) => ({
+        // ─── Step 2: Select candidates ───
+        // Pre-score for priority ordering, but we analyze ALL properties with coords.
+        // Pre-score just determines the ORDER (highest potential first).
+        const withPreScore = allProperties.map((p) => ({
           property: p,
           preScore: preScore(p),
         }));
 
-        const candidates = scored
-          .filter((s) => s.preScore >= PRE_SCORE_THRESHOLD)
-          .sort((a, b) => b.preScore - a.preScore);
+        // Sort by pre-score descending — most likely distressed first
+        withPreScore.sort((a, b) => b.preScore - a.preScore);
 
-        // Apply home limit if specified (0 = no limit)
-        const effectiveLimit = limit && limit > 0 ? limit : candidates.length;
-        const limitedCandidates = candidates.slice(0, effectiveLimit);
+        // Apply limit if specified (0 = no limit)
+        const effectiveLimit = limit && limit > 0 ? limit : withPreScore.length;
+        const candidates = withPreScore.slice(0, effectiveLimit);
+
+        // Split into properties with coords (visual analysis) vs without
+        const withCoords = candidates.filter(
+          (c) => c.property.latitude && c.property.longitude
+        );
+        const withoutCoords = candidates.filter(
+          (c) => !c.property.latitude || !c.property.longitude
+        );
 
         send("pre_filtering", {
-          passed: limitedCandidates.length,
-          filtered: allProperties.length - limitedCandidates.length,
-          limited: effectiveLimit < candidates.length,
+          total: allProperties.length,
+          analyzing: candidates.length,
+          withImagery: withCoords.length,
+          dataOnly: withoutCoords.length,
         });
 
-        // Step 3: Aerial scan — virtual drive-by with satellite + street view
-        let visualAnalyses = new Map<string, VisualDistressAnalysis>();
-        const candidateProperties = limitedCandidates.map((c) => c.property);
-        const propertiesWithCoords = candidateProperties
-          .filter((p) => p.latitude && p.longitude)
-          .map((p) => ({
-            propertyId: p.property_id || p.property_url || "",
-            lat: p.latitude!,
-            lng: p.longitude!,
-          }));
-
-        if (propertiesWithCoords.length > 0) {
-          if (!process.env.GOOGLE_MAPS_API_KEY) {
-            send("aerial_scan", {
-              message: "Skipping aerial scan — GOOGLE_MAPS_API_KEY not set in .env",
-              total: 0,
-            });
-          } else {
-            send("aerial_scan", {
-              message: `Virtual drive-by: scanning ${propertiesWithCoords.length} properties via satellite + street view...`,
-              total: propertiesWithCoords.length,
-            });
-
-            try {
-              visualAnalyses = await analyzePropertiesBatch(
-                propertiesWithCoords,
-                3 // concurrency limit
-              );
-
-              if (visualAnalyses.size === 0) {
-                send("aerial_scan", {
-                  message: "Aerial scan returned no results — check Google Maps API billing/permissions in console logs",
-                  total: 0,
-                });
-              } else {
-                send("aerial_scan_complete", {
-                  analyzed: visualAnalyses.size,
-                  distressedCount: Array.from(visualAnalyses.values()).filter(
-                    (v) => v.visual_distress_score >= 40
-                  ).length,
-                });
-              }
-            } catch (err) {
-              send("error", {
-                message: `Aerial scan error (continuing without): ${err}`,
-              });
-            }
-          }
+        // ─── Step 3: Single-pass visual distress analysis ───
+        // Every property with coordinates gets the full treatment:
+        // satellite + neighborhood + 4 street views + listing photos → Claude
+        if (!process.env.GOOGLE_MAPS_API_KEY) {
+          send("aerial_scan", {
+            message: "Skipping visual analysis — GOOGLE_MAPS_API_KEY not set in .env",
+            total: 0,
+          });
+        } else if (withCoords.length > 0) {
+          send("aerial_scan", {
+            message: `Virtual drive-by: scanning ${withCoords.length} properties (satellite + 4-angle street view + listing photos)...`,
+            total: withCoords.length,
+          });
         }
 
-        // Step 4: AI Score in batches (with visual analysis context)
-        const batches = chunkArray(candidateProperties, BATCH_SIZE);
-        const totalBatches = batches.length;
-        let scoredCount = 0;
+        let analyzedCount = 0;
         let flaggedCount = 0;
         let hotDealCount = 0;
 
-        for (let i = 0; i < batches.length; i++) {
-          send("scoring_batch", {
-            batchNumber: i + 1,
-            totalBatches,
-          });
+        // Process properties with visual analysis (concurrent workers)
+        const queue = [...withCoords];
+        let queueIndex = 0;
 
-          let aiScores: AIPropertyScore[];
-          try {
-            aiScores = await scoreBatch(batches[i], visualAnalyses);
-          } catch (err) {
-            send("error", {
-              message: `AI scoring error on batch ${i + 1}: ${err}`,
-            });
-            continue;
-          }
+        const worker = async () => {
+          while (queueIndex < queue.length) {
+            const idx = queueIndex++;
+            const candidate = queue[idx];
+            const p = candidate.property;
+            const pid = p.property_id || p.property_url || "";
 
-          // Process each scored property
-          for (const aiScore of aiScores) {
-            const matchedProperty = batches[i].find(
-              (p) =>
-                (p.property_id || p.property_url || "") === aiScore.property_id
-            );
+            // Build context and gather listing photos
+            const context = buildPropertyContext(p);
+            const listingPhotos = extractListingPhotos(p);
 
-            if (!matchedProperty) continue;
-
-            const scoredProp = mapToScoredProperty(
-              matchedProperty,
-              aiScore,
-              session.id
-            );
-
-            // Save to database
+            // Single-pass: all images + data → Claude → distress score
+            let analysis: VisualDistressAnalysis | null = null;
             try {
-              await prisma.scoutedProperty.create({ data: scoredProp });
+              analysis = await analyzePropertyVisually(
+                pid,
+                p.latitude!,
+                p.longitude!,
+                context,
+                listingPhotos
+              );
+            } catch (err) {
+              console.error(`Analysis failed for ${pid}:`, err);
+            }
+
+            analyzedCount++;
+
+            // Build frontend property with analysis results
+            const frontendProp = mapToFrontendProperty(p, analysis);
+
+            // Save to DB
+            try {
+              await prisma.scoutedProperty.create({
+                data: mapToDbProperty(p, analysis, session.id),
+              });
             } catch {
               // unique constraint — skip duplicates
             }
 
-            const propId = matchedProperty.property_id || matchedProperty.property_url || "";
-            const visual = visualAnalyses.get(propId) ?? null;
-            const frontendProp = mapToFrontendProperty(matchedProperty, aiScore, visual);
+            send("property_scored", {
+              property: frontendProp,
+              progress: Math.round((analyzedCount / candidates.length) * 100),
+            });
 
-            send("property_scored", { property: frontendProp });
-
-            if (aiScore.distress_score >= 80) {
+            const score = analysis?.visual_distress_score ?? 0;
+            if (score >= 80) {
               send("hot_deal", { property: frontendProp });
               hotDealCount++;
             }
-
-            if (aiScore.distress_score >= 40) {
+            if (score >= 40) {
               flaggedCount++;
             }
 
-            scoredCount++;
+            // Progress update every 5 properties
+            if (analyzedCount % 5 === 0) {
+              send("progress", {
+                analyzed: analyzedCount,
+                total: candidates.length,
+                flagged: flaggedCount,
+                hot: hotDealCount,
+              });
+            }
           }
+        };
 
-          send("batch_complete", {
-            batchNumber: i + 1,
-            scored: aiScores.length,
+        if (withCoords.length > 0 && process.env.GOOGLE_MAPS_API_KEY) {
+          await Promise.all(
+            Array.from({ length: Math.min(CONCURRENCY, withCoords.length) }, () =>
+              worker()
+            )
+          );
+
+          send("aerial_scan_complete", {
+            analyzed: analyzedCount,
+            distressedCount: flaggedCount,
           });
         }
 
-        // Step 4: Complete
+        // Process properties WITHOUT coordinates (data-only, scored by pre-score)
+        for (const candidate of withoutCoords) {
+          const p = candidate.property;
+          const frontendProp = mapToFrontendProperty(p, null);
+
+          try {
+            await prisma.scoutedProperty.create({
+              data: mapToDbProperty(p, null, session.id),
+            });
+          } catch {
+            // skip duplicates
+          }
+
+          send("property_scored", {
+            property: frontendProp,
+            progress: Math.round(
+              ((analyzedCount + withoutCoords.indexOf(candidate) + 1) /
+                candidates.length) *
+                100
+            ),
+          });
+
+          // Use pre-score as a rough distress indicator for data-only properties
+          if (candidate.preScore >= 60) flaggedCount++;
+        }
+
+        // ─── Complete ───
         const duration = Math.round((Date.now() - startTime) / 1000);
 
         await prisma.scoutSession.update({
@@ -282,16 +304,18 @@ export async function POST(request: NextRequest) {
   });
 }
 
-function mapToScoredProperty(
+// ─── Mappers ───
+
+function mapToDbProperty(
   p: HomeHarvestProperty,
-  ai: AIPropertyScore,
+  analysis: VisualDistressAnalysis | null,
   sessionId: string
 ) {
   return {
     scoutSessionId: sessionId,
     propertyId: p.property_id || null,
     propertyUrl: p.property_url || null,
-    address: `${p.street || "Unknown"}`,
+    address: p.street || "Unknown",
     city: p.city || "",
     state: p.state || "",
     zipCode: p.zip_code || "",
@@ -313,36 +337,18 @@ function mapToScoredProperty(
     description: p.description || null,
     primaryPhoto: p.primary_photo || null,
     photos: p.alt_photos || null,
-    distressScore: ai.distress_score,
-    distressSignals: JSON.stringify(ai.distress_signals),
-    investmentType: ai.investment_type,
-    estimatedArv: ai.estimated_arv ? Math.round(ai.estimated_arv) : null,
-    repairLevel: ai.estimated_repair_cost?.level || null,
-    repairCostLow: ai.estimated_repair_cost?.range_low
-      ? Math.round(ai.estimated_repair_cost.range_low)
-      : null,
-    repairCostHigh: ai.estimated_repair_cost?.range_high
-      ? Math.round(ai.estimated_repair_cost.range_high)
-      : null,
-    maxAllowableOffer: ai.max_allowable_offer
-      ? Math.round(ai.max_allowable_offer)
-      : null,
-    wholesaleFeeEst: ai.profit_potential?.wholesale_fee_estimate
-      ? Math.round(ai.profit_potential.wholesale_fee_estimate)
-      : null,
-    flipProfitEst: ai.profit_potential?.flip_profit_estimate
-      ? Math.round(ai.profit_potential.flip_profit_estimate)
-      : null,
-    aiReasoning: ai.reasoning || null,
-    aiConfidence: ai.confidence || null,
-    recommendedAction: ai.recommended_action || null,
+    source: p._source ?? "for_sale",
+    distressScore: analysis?.visual_distress_score ?? null,
+    distressSignals: analysis ? JSON.stringify(analysis.visual_signals) : null,
+    aiReasoning: analysis?.notes ?? null,
+    aiConfidence: null,
+    propertyCondition: analysis?.property_condition ?? null,
   };
 }
 
 function mapToFrontendProperty(
   p: HomeHarvestProperty,
-  ai: AIPropertyScore,
-  visual?: VisualDistressAnalysis | null
+  analysis: VisualDistressAnalysis | null
 ) {
   return {
     id: p.property_id || p.property_url || "",
@@ -364,44 +370,39 @@ function mapToFrontendProperty(
     description: p.description || null,
     source: p._source ?? "for_sale",
     yearsSinceSale: p._years_since_sale ?? null,
-    distressScore: ai.distress_score,
-    distressSignals: ai.distress_signals,
-    investmentType: ai.investment_type,
-    estimatedArv: ai.estimated_arv ? Math.round(ai.estimated_arv) : null,
-    repairLevel: ai.estimated_repair_cost?.level || null,
-    repairCostLow: ai.estimated_repair_cost?.range_low
-      ? Math.round(ai.estimated_repair_cost.range_low)
-      : null,
-    repairCostHigh: ai.estimated_repair_cost?.range_high
-      ? Math.round(ai.estimated_repair_cost.range_high)
-      : null,
-    maxAllowableOffer: ai.max_allowable_offer
-      ? Math.round(ai.max_allowable_offer)
-      : null,
-    wholesaleFeeEst: ai.profit_potential?.wholesale_fee_estimate
-      ? Math.round(ai.profit_potential.wholesale_fee_estimate)
-      : null,
-    flipProfitEst: ai.profit_potential?.flip_profit_estimate
-      ? Math.round(ai.profit_potential.flip_profit_estimate)
-      : null,
-    aiReasoning: ai.reasoning || null,
-    aiConfidence: ai.confidence || null,
-    recommendedAction: ai.recommended_action || null,
-    // Satellite / street view
+    // Distress analysis
+    distressScore: analysis?.visual_distress_score ?? 0,
+    distressSignals: analysis?.visual_signals ?? [],
+    propertyCondition: analysis?.property_condition ?? "unknown",
+    neighborComparison: analysis?.neighbor_comparison ?? null,
+    aiReasoning: analysis?.notes ?? null,
+    aiConfidence: null,
+    // Keep these null for v1 — distress detection only
+    investmentType: null,
+    estimatedArv: null,
+    repairLevel: null,
+    repairCostLow: null,
+    repairCostHigh: null,
+    maxAllowableOffer: null,
+    wholesaleFeeEst: null,
+    flipProfitEst: null,
+    recommendedAction: null,
+    // Imagery URLs (for frontend display)
     satelliteUrl:
       p.latitude && p.longitude
         ? getSatelliteImageUrl(p.latitude, p.longitude)
         : null,
     streetViewUrl:
       p.latitude && p.longitude
-        ? getStreetViewUrl(p.latitude, p.longitude)
+        ? getStreetViewUrl(p.latitude, p.longitude, 0)
         : null,
-    visualAnalysis: visual
+    visualAnalysis: analysis
       ? {
-          score: visual.visual_distress_score,
-          signals: visual.visual_signals,
-          condition: visual.property_condition,
-          notes: visual.notes,
+          score: analysis.visual_distress_score,
+          signals: analysis.visual_signals,
+          condition: analysis.property_condition,
+          notes: analysis.notes,
+          neighborComparison: analysis.neighbor_comparison,
         }
       : null,
   };

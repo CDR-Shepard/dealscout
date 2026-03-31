@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { prisma } from "@/lib/db";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -6,205 +7,338 @@ const anthropic = new Anthropic({
 
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY || "";
 
-export interface VisualDistressAnalysis {
-  property_id: string;
-  visual_distress_score: number; // 0-100
-  visual_signals: string[];
-  property_condition: "well_maintained" | "fair" | "poor" | "severely_distressed" | "unknown";
-  notes: string;
-}
+// Cache TTL: skip re-analysis if analyzed within this window
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-/**
- * Build a Google Maps Static API satellite image URL with a red pin on the target property.
- */
+// ─── Image URL builders ───
+
+/** Satellite view of the target property (zoomed in). */
 export function getSatelliteImageUrl(
   lat: number,
   lng: number,
   zoom = 19,
-  size = "600x400"
+  size = "640x640"
 ): string | null {
   if (!GOOGLE_API_KEY) return null;
   return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${size}&maptype=satellite&markers=color:red|${lat},${lng}&key=${GOOGLE_API_KEY}`;
 }
 
-/**
- * Build a Google Street View Static API URL for a property.
- */
+/** Neighborhood context — zoomed out to show surrounding block. */
+export function getNeighborhoodImageUrl(
+  lat: number,
+  lng: number,
+  zoom = 17,
+  size = "640x640"
+): string | null {
+  if (!GOOGLE_API_KEY) return null;
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${size}&maptype=satellite&markers=color:red|${lat},${lng}&key=${GOOGLE_API_KEY}`;
+}
+
+/** Street View at a specific heading (compass direction). */
 export function getStreetViewUrl(
   lat: number,
   lng: number,
-  size = "600x400"
+  heading: number,
+  size = "640x640"
 ): string | null {
   if (!GOOGLE_API_KEY) return null;
-  return `https://maps.googleapis.com/maps/api/streetview?location=${lat},${lng}&size=${size}&fov=90&key=${GOOGLE_API_KEY}`;
+  return `https://maps.googleapis.com/maps/api/streetview?location=${lat},${lng}&size=${size}&fov=90&heading=${heading}&key=${GOOGLE_API_KEY}`;
 }
 
-/**
- * Fetch Street View metadata to get the image capture date.
- * Returns the date string (e.g. "2023-07") or null.
- */
-async function getStreetViewDate(lat: number, lng: number): Promise<string | null> {
-  if (!GOOGLE_API_KEY) return null;
+/** Check if Street View coverage exists at this location. */
+export async function getStreetViewMetadata(
+  lat: number,
+  lng: number
+): Promise<{ available: boolean; date: string | null }> {
+  if (!GOOGLE_API_KEY) return { available: false, date: null };
   try {
     const url = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${lat},${lng}&key=${GOOGLE_API_KEY}`;
     const response = await fetch(url);
-    if (!response.ok) return null;
+    if (!response.ok) return { available: false, date: null };
     const data = await response.json();
-    if (data.status === "OK" && data.date) {
-      return data.date as string;
-    }
-    return null;
+    return {
+      available: data.status === "OK",
+      date: data.date ?? null,
+    };
+  } catch {
+    return { available: false, date: null };
+  }
+}
+
+// ─── Image fetching ───
+
+async function fetchImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("image")) return null;
+    const buffer = await response.arrayBuffer();
+    return Buffer.from(buffer).toString("base64");
   } catch {
     return null;
   }
 }
 
-/**
- * Fetch an image as base64. Returns null with a logged reason on failure.
- */
-async function fetchImageAsBase64(url: string): Promise<string | null> {
+async function fetchListingPhotoAsBase64(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("text") || contentType.includes("json")) {
-        const body = await response.text();
-        console.error(`Image fetch failed (${response.status}): ${body.slice(0, 200)}`);
-      } else {
-        console.error(`Image fetch failed (${response.status}) for ${url.split("?")[0]}`);
-      }
-      return null;
-    }
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return null;
     const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("image")) {
-      const body = await response.text();
-      console.error(`Expected image but got ${contentType}: ${body.slice(0, 200)}`);
-      return null;
-    }
+    if (!contentType.includes("image")) return null;
     const buffer = await response.arrayBuffer();
     return Buffer.from(buffer).toString("base64");
-  } catch (err) {
-    console.error("Image fetch error:", err);
+  } catch {
     return null;
   }
 }
 
-const VISUAL_ANALYSIS_PROMPT = `You are a real estate property condition analyst specializing in DEFERRED MAINTENANCE detection. You are performing a "virtual drive-by" inspection using satellite and street-level imagery.
+// ─── Types ───
 
-IMPORTANT — IMAGE DATING:
-- The SATELLITE/AERIAL image and STREET VIEW image may have been captured on DIFFERENT dates (sometimes years apart).
-- The capture dates are provided with each image when available.
-- If the street view looks renovated but the listing photo shows disrepair (or vice versa), note this discrepancy — the property may have been recently renovated or may have deteriorated since the street view was taken.
-- Always note which image you are basing your assessment on and flag any date conflicts.
-- PRIORITIZE the most recent imagery when images conflict. A recently renovated property visible in newer street view overrides an old listing photo showing disrepair.
-
-SATELLITE/AERIAL VIEW: A red pin marks the EXACT property to analyze. Focus your analysis on the property at the red marker, not neighboring homes.
-
-Analyze the provided image(s) looking specifically for these DEFERRED MAINTENANCE indicators:
-
-PRIORITY SIGNALS (look for these first):
-- GRASS/LAWN: Overgrown weeds (3+ feet), dead/brown grass beyond normal drought, completely bare dirt yard
-- LANDSCAPING: Non-existent landscaping, dead trees/bushes, overgrown hedges blocking windows
-- VEHICLES: Old/junker cars in driveway or backyard, cars on blocks, RVs, boats in disrepair, multiple non-running vehicles
-- WINDOW BARS: Security bars on windows (indicates area concerns, tired owner)
-- PAINT: Fading, peeling, chipping, or bare wood on exterior walls, fascia, trim, eaves
-- ROOF TARPS: Blue tarps on roof (major red flag — active leak, deferred repair)
-- ROOF DAMAGE: Missing shingles, sagging roof line, moss/debris accumulation
-- POOLS: Empty/drained pools, green algae pools, pools with debris/leaves covering surface
-- HOARDING/JUNK: Visible junk, furniture, appliances, or clutter in yard, on porch, or visible through windows
-- WINDOWS: Old single-pane aluminum-frame windows (vs modern double-pane vinyl) — especially relevant in San Diego and LA markets
-- FENCING: Leaning, broken, or missing fence sections
-- DRIVEWAY: Cracked, broken, or heavily stained concrete/asphalt
-- SIDING: Damaged, missing, or severely faded siding panels
-- FOUNDATION: Visible cracks in foundation or retaining walls
-
-COMPARISON: Always compare the marked property to its immediate neighbors. A property that is noticeably worse than its neighbors is a stronger signal.
-
-Return a JSON object (NOT an array):
-{
-  "property_id": "<the property ID provided>",
-  "visual_distress_score": <0-100, where 100 = severely distressed with multiple deferred maintenance issues>,
-  "visual_signals": ["signal1", "signal2", ...],
-  "property_condition": "well_maintained" | "fair" | "poor" | "severely_distressed" | "unknown",
-  "notes": "<1-2 sentences specifically describing the deferred maintenance you observe. Note any date discrepancies between images.>"
+export interface VisualDistressAnalysis {
+  property_id: string;
+  visual_distress_score: number;
+  visual_signals: string[];
+  property_condition:
+    | "well_maintained"
+    | "fair"
+    | "poor"
+    | "severely_distressed"
+    | "unknown";
+  notes: string;
+  neighbor_comparison: string;
 }
 
-Be SPECIFIC in visual_signals — instead of "yard debris", say "multiple old appliances visible in backyard" or "3+ foot tall weeds in front yard". Specificity helps investors know what to expect.
+export interface PropertyImageSet {
+  satelliteUrl: string | null;
+  neighborhoodUrl: string | null;
+  streetViewUrls: string[];
+  streetViewDate: string | null;
+}
 
-If the image is unclear, too zoomed out, or you can't make a determination, set visual_distress_score to 0, condition to "unknown", and explain in notes.
+// ─── Cache ───
 
-Return ONLY the JSON object, no other text.`;
+async function getCachedAnalysis(
+  propertyId: string
+): Promise<VisualDistressAnalysis | null> {
+  try {
+    const cached = await prisma.visualAnalysisCache.findUnique({
+      where: { propertyId },
+    });
+    if (!cached) return null;
+    const age = Date.now() - cached.analyzedAt.getTime();
+    if (age > CACHE_TTL_MS) return null;
+    return {
+      property_id: cached.propertyId,
+      visual_distress_score: cached.distressScore,
+      visual_signals: JSON.parse(cached.signals),
+      property_condition: cached.condition as VisualDistressAnalysis["property_condition"],
+      notes: cached.notes,
+      neighbor_comparison: "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function cacheAnalysis(
+  analysis: VisualDistressAnalysis,
+  lat: number,
+  lng: number,
+  imageCount: number
+): Promise<void> {
+  try {
+    await prisma.visualAnalysisCache.upsert({
+      where: { propertyId: analysis.property_id },
+      create: {
+        propertyId: analysis.property_id,
+        latitude: lat,
+        longitude: lng,
+        distressScore: analysis.visual_distress_score,
+        signals: JSON.stringify(analysis.visual_signals),
+        condition: analysis.property_condition,
+        notes: analysis.notes,
+        imageCount,
+      },
+      update: {
+        distressScore: analysis.visual_distress_score,
+        signals: JSON.stringify(analysis.visual_signals),
+        condition: analysis.property_condition,
+        notes: analysis.notes,
+        imageCount,
+        analyzedAt: new Date(),
+      },
+    });
+  } catch {
+    // cache write failure is non-fatal
+  }
+}
+
+// ─── Image gathering ───
 
 /**
- * Analyze a single property using satellite + street view imagery.
- * Fetches street view metadata for capture date context.
+ * Gather all available imagery for a property:
+ * - 1 satellite (zoom 19, 640x640)
+ * - 1 neighborhood context (zoom 17, 640x640)
+ * - Up to 4 street view angles (N/E/S/W)
+ * - Up to 3 listing photos
+ *
+ * Returns base64-encoded images ready for Claude vision.
+ */
+export async function gatherPropertyImages(
+  lat: number,
+  lng: number,
+  listingPhotos?: string[]
+): Promise<{
+  images: Array<{
+    label: string;
+    base64: string;
+    mediaType: "image/png" | "image/jpeg";
+  }>;
+  streetViewDate: string | null;
+  urls: PropertyImageSet;
+}> {
+  const images: Array<{
+    label: string;
+    base64: string;
+    mediaType: "image/png" | "image/jpeg";
+  }> = [];
+
+  // Check street view availability first (free metadata call)
+  const svMeta = await getStreetViewMetadata(lat, lng);
+
+  // Build all image URLs
+  const satelliteUrl = getSatelliteImageUrl(lat, lng, 19);
+  const neighborhoodUrl = getNeighborhoodImageUrl(lat, lng, 17);
+
+  const streetViewHeadings = [0, 90, 180, 270];
+  const streetViewUrls: string[] = [];
+  if (svMeta.available) {
+    for (const heading of streetViewHeadings) {
+      const url = getStreetViewUrl(lat, lng, heading);
+      if (url) streetViewUrls.push(url);
+    }
+  }
+
+  // Fetch all images in parallel
+  const fetchPromises: Array<
+    Promise<{ label: string; base64: string | null; mediaType: "image/png" | "image/jpeg" }>
+  > = [];
+
+  if (satelliteUrl) {
+    fetchPromises.push(
+      fetchImageAsBase64(satelliteUrl).then((b64) => ({
+        label: "SATELLITE/AERIAL VIEW — zoomed in (red pin = target property)",
+        base64: b64,
+        mediaType: "image/png" as const,
+      }))
+    );
+  }
+
+  if (neighborhoodUrl) {
+    fetchPromises.push(
+      fetchImageAsBase64(neighborhoodUrl).then((b64) => ({
+        label: "NEIGHBORHOOD CONTEXT — zoomed out (red pin = target, compare to surrounding properties)",
+        base64: b64,
+        mediaType: "image/png" as const,
+      }))
+    );
+  }
+
+  const headingLabels = ["NORTH", "EAST", "SOUTH", "WEST"];
+  for (let i = 0; i < streetViewUrls.length; i++) {
+    const dateNote = svMeta.date ? ` (captured: ${svMeta.date})` : "";
+    fetchPromises.push(
+      fetchImageAsBase64(streetViewUrls[i]).then((b64) => ({
+        label: `STREET VIEW — ${headingLabels[i]} facing${dateNote}`,
+        base64: b64,
+        mediaType: "image/jpeg" as const,
+      }))
+    );
+  }
+
+  // Listing photos (up to 3)
+  const photos = (listingPhotos ?? []).slice(0, 3);
+  for (let i = 0; i < photos.length; i++) {
+    fetchPromises.push(
+      fetchListingPhotoAsBase64(photos[i]).then((b64) => ({
+        label: `LISTING PHOTO ${i + 1} of ${photos.length}`,
+        base64: b64,
+        mediaType: "image/jpeg" as const,
+      }))
+    );
+  }
+
+  const results = await Promise.all(fetchPromises);
+
+  for (const result of results) {
+    if (result.base64) {
+      images.push({
+        label: result.label,
+        base64: result.base64,
+        mediaType: result.mediaType,
+      });
+    }
+  }
+
+  return {
+    images,
+    streetViewDate: svMeta.date,
+    urls: {
+      satelliteUrl,
+      neighborhoodUrl,
+      streetViewUrls,
+      streetViewDate: svMeta.date,
+    },
+  };
+}
+
+// ─── Single-pass visual analysis ───
+
+/**
+ * Analyze a single property in one pass: all imagery + property data → Claude.
+ * Returns null only if zero images could be fetched.
  */
 export async function analyzePropertyVisually(
   propertyId: string,
   lat: number,
-  lng: number
+  lng: number,
+  propertyContext: string,
+  listingPhotos?: string[]
 ): Promise<VisualDistressAnalysis | null> {
-  const satelliteUrl = getSatelliteImageUrl(lat, lng);
-  const streetViewUrl = getStreetViewUrl(lat, lng);
+  // Check cache first
+  const cached = await getCachedAnalysis(propertyId);
+  if (cached) return cached;
 
-  if (!satelliteUrl && !streetViewUrl) return null;
+  const { images } = await gatherPropertyImages(lat, lng, listingPhotos);
 
-  // Fetch images and street view date in parallel
-  const [satelliteB64, streetViewB64, streetViewDate] = await Promise.all([
-    satelliteUrl ? fetchImageAsBase64(satelliteUrl) : Promise.resolve(null),
-    streetViewUrl ? fetchImageAsBase64(streetViewUrl) : Promise.resolve(null),
-    getStreetViewDate(lat, lng),
-  ]);
+  if (images.length === 0) return null;
 
-  // Need at least one image
-  if (!satelliteB64 && !streetViewB64) return null;
-
-  // Build content with available images
+  // Build Claude message content
   const content: Anthropic.MessageCreateParams["messages"][0]["content"] = [];
 
-  if (satelliteB64) {
-    content.push({
-      type: "text" as const,
-      text: "SATELLITE/AERIAL VIEW (red pin marks the target property):",
-    });
+  for (const img of images) {
+    content.push({ type: "text" as const, text: img.label });
     content.push({
       type: "image" as const,
       source: {
         type: "base64" as const,
-        media_type: "image/png" as const,
-        data: satelliteB64,
-      },
-    });
-  }
-
-  if (streetViewB64) {
-    const dateNote = streetViewDate
-      ? ` (captured: ${streetViewDate})`
-      : " (capture date unknown)";
-    content.push({
-      type: "text" as const,
-      text: `STREET-LEVEL VIEW${dateNote}:`,
-    });
-    content.push({
-      type: "image" as const,
-      source: {
-        type: "base64" as const,
-        media_type: "image/jpeg" as const,
-        data: streetViewB64,
+        media_type: img.mediaType,
+        data: img.base64,
       },
     });
   }
 
   content.push({
     type: "text" as const,
-    text: `Property ID: ${propertyId}\nCoordinates: ${lat}, ${lng}\n\nAnalyze the property at the red pin marker. Note if street view and aerial imagery appear to be from different time periods.`,
+    text: `Property ID: ${propertyId}\nCoordinates: ${lat}, ${lng}\n\n${propertyContext}\n\nAnalyze the property at the red pin marker using ALL provided images. You have multiple viewing angles — use them to cross-reference what you see.`,
   });
 
   try {
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: VISUAL_ANALYSIS_PROMPT,
+      max_tokens: 1500,
+      system: DISTRESS_DETECTION_PROMPT,
       messages: [{ role: "user", content }],
     });
 
@@ -213,7 +347,12 @@ export async function analyzePropertyVisually(
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
 
-    return JSON.parse(jsonMatch[0]) as VisualDistressAnalysis;
+    const analysis = JSON.parse(jsonMatch[0]) as VisualDistressAnalysis;
+
+    // Cache the result
+    await cacheAnalysis(analysis, lat, lng, images.length);
+
+    return analysis;
   } catch (err) {
     console.error(`Visual analysis failed for ${propertyId}:`, err);
     return null;
@@ -221,12 +360,18 @@ export async function analyzePropertyVisually(
 }
 
 /**
- * Batch analyze multiple properties visually.
- * Runs in parallel with concurrency limit to avoid rate limits.
+ * Batch analyze properties with concurrency control.
  */
 export async function analyzePropertiesBatch(
-  properties: { propertyId: string; lat: number; lng: number }[],
-  concurrency = 3
+  properties: Array<{
+    propertyId: string;
+    lat: number;
+    lng: number;
+    context: string;
+    listingPhotos?: string[];
+  }>,
+  concurrency = 5,
+  onResult?: (propertyId: string, analysis: VisualDistressAnalysis | null) => void
 ): Promise<Map<string, VisualDistressAnalysis>> {
   const results = new Map<string, VisualDistressAnalysis>();
   const queue = [...properties];
@@ -238,16 +383,91 @@ export async function analyzePropertiesBatch(
       const analysis = await analyzePropertyVisually(
         item.propertyId,
         item.lat,
-        item.lng
+        item.lng,
+        item.context,
+        item.listingPhotos
       );
       if (analysis) {
         results.set(item.propertyId, analysis);
       }
+      onResult?.(item.propertyId, analysis);
     }
   };
 
-  const workers = Array.from({ length: concurrency }, () => worker());
-  await Promise.all(workers);
-
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
   return results;
 }
+
+// ─── The prompt ───
+
+const DISTRESS_DETECTION_PROMPT = `You are an expert property condition analyst performing a "virtual drive-by" inspection. Your SOLE purpose is detecting DEFERRED MAINTENANCE — physical signs that a property owner has stopped maintaining their home. This is the #1 indicator of a motivated seller.
+
+You will receive MULTIPLE images of a single property from different angles and sources:
+- SATELLITE/AERIAL views (zoomed in + neighborhood context)
+- STREET VIEW from up to 4 compass directions (N/E/S/W)
+- LISTING PHOTOS showing interior or exterior
+
+USE ALL IMAGES. Cross-reference what you see from different angles. A blue tarp visible in satellite may be hidden from the front street view. A trashed backyard visible from aerial may look fine from the street.
+
+IMAGE DATING: Satellite, street view, and listing photos may be from DIFFERENT dates (sometimes years apart). Capture dates are provided when available. If images conflict (e.g., street view shows renovation but satellite shows disrepair), flag this and indicate which appears more recent.
+
+NEIGHBORHOOD COMPARISON: The zoomed-out neighborhood image lets you compare the target property (red pin) to its immediate neighbors. A property that is VISIBLY WORSE than neighbors is a much stronger signal. Always comment on this comparison.
+
+DEFERRED MAINTENANCE SIGNALS — score each one you detect:
+
+EXTERIOR (visible from street + aerial):
+- Overgrown weeds/lawn (3+ feet), dead grass, bare dirt yard: +10-15
+- Dead landscaping, overgrown hedges blocking windows: +10-15
+- Fading, peeling, chipping paint on walls/fascia/trim: +10-15
+- Damaged/missing/severely faded siding: +10-15
+- Cracked, broken, or heavily stained driveway: +5-10
+- Leaning, broken, or missing fence sections: +5-10
+- Visible foundation cracks or retaining wall damage: +15-20
+
+ROOF (best visible from aerial):
+- Blue tarps covering damage: +15-20 (major red flag)
+- Missing shingles, sagging roof line: +15-20
+- Moss/debris accumulation on roof: +10-15
+- Mismatched or patched roofing: +5-10
+
+YARD / LOT (visible from aerial + street):
+- Old/junker vehicles, cars on blocks, non-running vehicles: +10-15
+- Junk, furniture, appliances in yard or on porch: +10-15
+- Empty/drained pool or green algae pool: +10-15
+- Construction debris or abandoned projects: +10-15
+- Boats, RVs in disrepair on property: +5-10
+
+WINDOWS & SECURITY:
+- Security bars on windows: +5-10
+- Old single-pane aluminum-frame windows (vs modern vinyl): +10-15 (especially in SoCal)
+- Boarded-up windows: +20-25
+- Broken or cracked windows: +10-15
+
+INTERIOR (from listing photos, if provided):
+- Outdated kitchen (laminate counters, old appliances, wood paneling): +5-10
+- Water stains on ceilings or walls: +10-15
+- Peeling wallpaper or damaged walls: +5-10
+- Old carpet, damaged flooring: +5-10
+- Cluttered/hoarding conditions: +10-15
+- Mold visible: +15-20
+
+REGIONAL NOTES:
+- SoCal (SD/LA): Drought-dead lawn ≠ abandoned lawn. Look for 3+ foot weeds vs. just brown grass.
+- SoCal: Single-pane aluminum windows = major signal (decades without updates).
+- Pool markets: Empty/green pool = owner gave up. Expensive fix.
+
+Return a JSON object:
+{
+  "property_id": "<provided>",
+  "visual_distress_score": <0-100>,
+  "visual_signals": ["specific signal 1", "specific signal 2", ...],
+  "property_condition": "well_maintained" | "fair" | "poor" | "severely_distressed" | "unknown",
+  "neighbor_comparison": "<1 sentence comparing this property to its visible neighbors>",
+  "notes": "<2-3 sentences describing what you observe across ALL images. Mention which images revealed what. Flag any date discrepancies.>"
+}
+
+Be SPECIFIC in visual_signals. Not "yard debris" but "three old appliances and a mattress visible in backyard from aerial view." Not "bad roof" but "blue tarp covering ~30% of roof visible in satellite image, missing shingles on south-facing slope visible in street view."
+
+If images are unclear or you genuinely cannot determine condition, score 0 with condition "unknown" and explain why in notes.
+
+Return ONLY the JSON object.`;

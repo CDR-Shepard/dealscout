@@ -21,18 +21,17 @@ export async function GET() {
       });
     }
 
-    const totalMao = await prisma.savedProperty.aggregate({
+    const activeCount = await prisma.savedProperty.count({
       where: {
         userId: DEFAULT_USER_ID,
         pipelineStage: { notIn: ["dead", "closed"] },
       },
-      _sum: { maxAllowableOffer: true },
     });
 
     return NextResponse.json({
       success: true,
       stages: counts,
-      totalPipelineValue: totalMao._sum.maxAllowableOffer ?? 0,
+      activePipelineCount: activeCount,
     });
   } catch (err) {
     return NextResponse.json(

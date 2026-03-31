@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
@@ -66,24 +66,34 @@ model ScoutedProperty {
   photos            String?
   primaryPhoto      String?
   rawData           String?
+  source            String?
   distressScore     Int?
   distressSignals   String?
-  investmentType    String?
-  estimatedArv      Int?
-  repairLevel       String?
-  repairCostLow     Int?
-  repairCostHigh    Int?
-  maxAllowableOffer Int?
-  wholesaleFeeEst   Int?
-  flipProfitEst     Int?
   aiReasoning       String?
   aiConfidence      Int?
-  recommendedAction String?
+  propertyCondition String?
   createdAt         DateTime     @default(now())
 
   @@unique([scoutSessionId, propertyId])
   @@index([distressScore])
   @@index([scoutSessionId])
+}
+
+/// Cache visual analysis results so re-scouting the same area
+/// doesn't re-fetch imagery or re-analyze unchanged properties.
+model VisualAnalysisCache {
+  id                 String   @id @default(cuid())
+  propertyId         String   @unique
+  latitude           Float
+  longitude          Float
+  distressScore      Int
+  signals            String
+  condition          String
+  notes              String
+  imageCount         Int      @default(0)
+  analyzedAt         DateTime @default(now())
+
+  @@index([latitude, longitude])
 }
 
 model SavedProperty {
@@ -98,10 +108,7 @@ model SavedProperty {
   latitude          Float?
   longitude         Float?
   listPrice         Int?
-  estimatedArv      Int?
-  maxAllowableOffer Int?
   distressScore     Int?
-  investmentType    String?
   aiReasoning       String?
   distressSignals   String?
   photos            String?

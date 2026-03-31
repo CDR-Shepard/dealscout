@@ -1,26 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { scoreBatch } from "@/lib/ai/scoring";
-import type { HomeHarvestProperty } from "@/lib/homeharvest/types";
+import { NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
-  try {
-    const { properties } = (await request.json()) as {
-      properties: HomeHarvestProperty[];
-    };
-
-    if (!properties?.length) {
-      return NextResponse.json(
-        { error: "No properties provided" },
-        { status: 400 }
-      );
-    }
-
-    const scores = await scoreBatch(properties);
-    return NextResponse.json({ success: true, scores });
-  } catch (err) {
-    return NextResponse.json(
-      { error: `Scoring failed: ${err}` },
-      { status: 500 }
-    );
-  }
+/**
+ * V1: Batch scoring is handled inline by the scout/run pipeline
+ * (single-pass visual analysis per property).
+ * This endpoint is reserved for v2 when batch deal-math scoring is added.
+ */
+export async function POST() {
+  return NextResponse.json(
+    { error: "Batch scoring disabled in v1. Use /api/scout/run for visual distress analysis." },
+    { status: 410 }
+  );
 }
